@@ -1,12 +1,8 @@
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Properties;
@@ -33,8 +29,10 @@ import vo.ResponseVO;
  * @author codesjava
  */
 public class ReceiveEmailWithAttachment { 
- public static void receiveEmail(String pop3Host,
+	private static String USER_AGENT ="Mozilla/5.0";
+ public static boolean receiveEmail(String pop3Host,
     String mailStoreType, String userName, String password){
+	 boolean humanFound = false;
     //Set properties
     Properties props = new Properties();
     props.put("mail.store.protocol", "pop3");
@@ -90,11 +88,7 @@ public class ReceiveEmailWithAttachment {
 	      
 	       InputStream stream =    (InputStream) bodyPart.getInputStream();  
 	      ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
-	       
-	       //OutputStream            os            = new FileOutputStream("C:\\Users\\shaurya\\Downloads\\img\\"+System.currentTimeMillis()+".jpg"); 
-
-       // Starts writing the bytes in it 
-       
+	     
  
 	       byte[] buffer = new byte[1024];
 			int len;
@@ -108,7 +102,11 @@ public class ReceiveEmailWithAttachment {
 
 	        // Close the file 
 			byteArray.close(); 
-	       System.out.println("Humann fould ::: "+humanFound(byteArray.toByteArray()));  
+			if (!humanFound) {
+				humanFound = findHuman(byteArray.toByteArray());
+				 
+			}
+	        
 	      }  
 	   }
  
@@ -122,11 +120,13 @@ public class ReceiveEmailWithAttachment {
 	} catch (Exception e) {
 	       e.printStackTrace();
 	}
- 
+    System.out.println("Human found ::: "+humanFound);
+    return humanFound;
+    
     }
- 
+ //
 //HTTP POST request
-	private static boolean humanFound( byte[] bytesArray ) throws Exception {
+	private static boolean findHuman( byte[] bytesArray ) throws Exception {
 
 		String url = "http://localhost:80/v1/vision/detection";
 	
@@ -140,9 +140,9 @@ public class ReceiveEmailWithAttachment {
 		HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 		con.setUseCaches(false);
 		con.setDoOutput(true);
-		//add reuqest header
+	
 		con.setRequestMethod("POST");
-		con.setRequestProperty("User-Agent", "Mozilla/5.0");
+		con.setRequestProperty("User-Agent", USER_AGENT);
 		con.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
 		con.setRequestProperty(
 			    "Content-Type", "multipart/form-data;boundary=" + boundary);
@@ -156,13 +156,7 @@ public class ReceiveEmailWithAttachment {
 			    attachmentName + "\";filename=\"" + 
 			    attachmentFileName + "\"" + crlf);
 			request.writeBytes(crlf);
-			/*File file = new File("C:\\Users\\shaurya\\Downloads\\img\\person.jpg");
-			  //init array with file length
-			  byte[] bytesArray = new byte[(int) file.length()]; 
-
-			  FileInputStream fis = new FileInputStream(file);
-			  fis.read(bytesArray); //read file into bytes[]
-			  fis.close();*/
+			
 			request.write(bytesArray);
 			
 			request.writeBytes(crlf);
@@ -202,6 +196,41 @@ public class ReceiveEmailWithAttachment {
 		return false;
 
 	}
+	
+	
+	// HTTP GET request
+		private static void notifyHumanActivity() throws Exception {
+
+			String url = "http://sanhoo-home-security.appspot.com/HumanDetected?deviceID=3";
+			
+			URL obj = new URL(url);
+			HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+
+			// optional default is GET
+			con.setRequestMethod("GET");
+
+			//add request header
+			con.setRequestProperty("User-Agent", USER_AGENT);
+
+			int responseCode = con.getResponseCode();
+			System.out.println("\nSending 'GET' request to URL : " + url);
+			System.out.println("Response Code : " + responseCode);
+
+			BufferedReader in = new BufferedReader(
+			        new InputStreamReader(con.getInputStream()));
+			String inputLine;
+			StringBuffer response = new StringBuffer();
+
+			while ((inputLine = in.readLine()) != null) {
+				response.append(inputLine);
+			}
+			in.close();
+
+			//print result
+			System.out.println(response.toString());
+
+		}
+		
  public static void main(String[] args) {
   String pop3Host = "pop.gmail.com";//change accordingly
   String mailStoreType = "pop3";	
@@ -212,7 +241,10 @@ public class ReceiveEmailWithAttachment {
 	 
 	  try {
 		  //call receiveEmail
-		  receiveEmail(pop3Host, mailStoreType, userName, password);
+		  boolean humanFound = receiveEmail(pop3Host, mailStoreType, userName, password);
+		  if (humanFound) {
+			  notifyHumanActivity();
+		  }
 		Thread.sleep(2000);
 	} catch (Exception e) {
 		
