@@ -3,9 +3,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 import javax.mail.Address;
 import javax.mail.BodyPart;
@@ -14,13 +19,20 @@ import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.Multipart;
 import javax.mail.NoSuchProviderException;
+import javax.mail.PasswordAuthentication;
 import javax.mail.Session;
 import javax.mail.Store;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
+import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
 import javax.mail.internet.MimeUtility;
 
 import com.google.gson.Gson;
 
 import secreat.Key;
+import vo.HumanDetectVO;
 import vo.Prediction;
 import vo.ResponseVO;
  
@@ -30,15 +42,58 @@ import vo.ResponseVO;
  */
 public class ReceiveEmailWithAttachment { 
 	private static String USER_AGENT ="Mozilla/5.0";
- public static boolean receiveEmail(String pop3Host,
+	private static final String falseAlarmSubject = "False alarm";
+	 private static final String pop3Host = "pop.gmail.com";//change accordingly
+	 private static final String mailStoreType = "pop3";	
+	 private static  final String userName =Key.userName;
+	 private static  final String password = Key.password;
+	private static  Properties props = new Properties();
+	static {
+		 
+		    props.put("mail.store.protocol", "pop3");
+		    props.put("mail.pop3.host", pop3Host);
+		    props.put("mail.pop3.port", "995");
+		    props.put("mail.pop3.starttls.enable", "true");
+	}
+public static final void sendEmail(String subject, String Body) {
+	Properties props_send = new Properties();
+	props_send.put("mail.smtp.auth", "true");
+	props_send.put("mail.smtp.starttls.enable", "true");
+	props_send.put("mail.smtp.host", "smtp.gmail.com");
+	props_send.put("mail.smtp.port", "587");
+	
+	Session session = Session.getInstance(props_send,
+			  new javax.mail.Authenticator() {
+				protected PasswordAuthentication getPasswordAuthentication() {
+					return new PasswordAuthentication(userName, password);
+				}
+			  });
+	
+	 try {
+
+			Message message = new MimeMessage(session);
+			Multipart multipart = new MimeMultipart();
+			MimeBodyPart messageBodyPart = new MimeBodyPart();
+			message.setFrom(new InternetAddress("foscamnotificationsandeep@gmail.com","Camera Detect Human"));
+			
+			message.setRecipients(Message.RecipientType.TO,		InternetAddress.parse("foscamnotificationsandeep@gmail.com"));
+			
+		
+			message.setSubject(subject);
+				 message.setText(Body); 
+		Transport.send(message); 
+	} catch (MessagingException | UnsupportedEncodingException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}  
+	  
+}
+ public static List<HumanDetectVO> receiveEmail(String pop3Host,
     String mailStoreType, String userName, String password){
-	 boolean humanFound = false;
+	 List<HumanDetectVO> imageScanner = new ArrayList<HumanDetectVO>();
+	 Boolean humanFound = null;
     //Set properties
-    Properties props = new Properties();
-    props.put("mail.store.protocol", "pop3");
-    props.put("mail.pop3.host", pop3Host);
-    props.put("mail.pop3.port", "995");
-    props.put("mail.pop3.starttls.enable", "true");
+  
  
     // Get the Session object.
     Session session = Session.getInstance(props);
@@ -62,52 +117,72 @@ public class ReceiveEmailWithAttachment {
 	   Address[] toAddress = 
              message.getRecipients(Message.RecipientType.TO);
 	     System.out.println("---------------------------------");  
-	     System.out.println("Details of Email Message " 
-                                                   + (i + 1) + " :");  
-	     System.out.println("Subject: " + message.getSubject());  
-	     System.out.println("From: " + message.getFrom()[0]);  
- 
-	     //Iterate recipients 
-	     System.out.println("To: "); 
-	     for(int j = 0; j < toAddress.length; j++){
-	       System.out.println(toAddress[j].toString());
-	     }
- 
-	     //Iterate multiparts
-	     Multipart multipart = (Multipart) message.getContent();
-	     for(int k = 0; k < multipart.getCount(); k++){
-	       BodyPart bodyPart = multipart.getBodyPart(k);  
-	       String fileName = bodyPart.getFileName();   
-	       if (null != fileName) {
-	    	   if (fileName.toLowerCase().indexOf("gb2312") != -1) {   
-	               fileName = MimeUtility.decodeText(fileName);   
-	           } 
-		       System.out.println( fileName);
-	       }
-           
-	      
-	       InputStream stream =    (InputStream) bodyPart.getInputStream();  
-	      ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+	    
+	     System.out.println("Time : "+message.getSentDate());
+	     //System.out.println("Details of Email Message received "      + (i + 1) + " :");  
+	    // System.out.println("Subject: " + message.getSubject()); 
 	     
+	     //System.out.println("From: " + message.getFrom()[0]);  
  
-	       byte[] buffer = new byte[1024];
-			int len;
+	     
+	     //Iterate multiparts
+          try {
+        	  
+          }catch(Exception e) {
+        	  e.printStackTrace();
+          }
+          Multipart multipart = null;
+          try {
+        	  if (message.getContent() != null && message.getContent() instanceof Multipart)
+        	  multipart = (Multipart) message.getContent();
+          }catch(Exception e) {
+        	  e.printStackTrace();
+          }
+	    
+	     if (null != multipart) {
+	    	 for(int k = 0; k < multipart.getCount(); k++){
+	  	       BodyPart bodyPart = multipart.getBodyPart(k);  
+	  	       String fileName = bodyPart.getFileName();  
+	  	       System.out.println( "Orignal File name "+fileName);
+	  	       if (null != fileName) {
+	  	    	   if (fileName.toLowerCase().indexOf("gb2312") != -1) {   
+	  	               fileName = MimeUtility.decodeText(fileName);   
+	  	           } 
+	  		       System.out.println( "File name after decoding "+fileName);
+	  	       }
+	             
+	  	      
+	  	       InputStream stream =    (InputStream) bodyPart.getInputStream();  
+	  	      ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+	  	     
+	   
+	  	       byte[] buffer = new byte[1024];
+	  			int len;
 
-			// read bytes from the input stream and store them in buffer
-			while ((len = stream.read(buffer)) != -1) {
-				// write bytes from the buffer into output stream
-				byteArray.write(buffer, 0, len);
-			}
-	       
-
-	        // Close the file 
-			byteArray.close(); 
-			if (!humanFound) {
-				humanFound = findHuman(byteArray.toByteArray());
-				 
-			}
-	        
-	      }  
+	  			// read bytes from the input stream and store them in buffer
+	  			while ((len = stream.read(buffer)) != -1) {
+	  				// write bytes from the buffer into output stream
+	  				byteArray.write(buffer, 0, len);
+	  			}
+	  	       
+	  			if (fileName != null && !falseAlarmSubject.equals(message.getSubject())){//ignore this email as it was sent by me 
+	  				System.out.println(" checking human .");
+		  	        // Close the file 
+		  			byteArray.close(); 
+		  			//if (humanFound == null || !humanFound) {
+		  			HumanDetectVO imageResult = new HumanDetectVO();
+		  			
+		  			imageResult.setHasHuman( findHuman(byteArray.toByteArray()));
+		  			imageResult.setFileName(fileName+" Date = "+ message.getSentDate());
+		  			imageScanner.add(imageResult);
+	  		     }
+	  			
+	  				 
+	  			//}
+	  	        
+	  	      } 
+	     }
+	      
 	   }
  
 	   //close the folder and store objects
@@ -120,8 +195,8 @@ public class ReceiveEmailWithAttachment {
 	} catch (Exception e) {
 	       e.printStackTrace();
 	}
-    System.out.println("Human found ::: "+humanFound);
-    return humanFound;
+    
+    return imageScanner;
     
     }
  //
@@ -232,20 +307,37 @@ public class ReceiveEmailWithAttachment {
 		}
 		
  public static void main(String[] args) {
-  String pop3Host = "pop.gmail.com";//change accordingly
-  String mailStoreType = "pop3";	
-  final String userName =Key.userName;
-  final String password = Key.password;
+ 
  
   while(true) {
 	 
 	  try {
+		  System.out.println(" Read email");
 		  //call receiveEmail
-		  boolean humanFound = receiveEmail(pop3Host, mailStoreType, userName, password);
+		  List<HumanDetectVO> imageScanResult = receiveEmail(pop3Host, mailStoreType, userName, password);
+		  boolean humanFound  = false;
+		  Set<String> falseAlarm = new HashSet<String>();
+		  if (null != imageScanResult && imageScanResult.size() > 0 ) {
+			 
+			  for (HumanDetectVO result: imageScanResult) {
+				  if (!result.isHasHuman()) {
+					  falseAlarm.add(result.getFileName());
+				  }else {
+					  humanFound = true;
+				  }
+			  }
+				  
+			 
+		  }
+		  
 		  if (humanFound) {
+			  System.out.println(" make a phone call ");
 			  notifyHumanActivity();
 		  }
-		Thread.sleep(2000);
+		 if (falseAlarm.size() > 0) {
+			 sendEmail(falseAlarmSubject, "Human not found "+falseAlarm);
+		 }
+		Thread.sleep(5000);
 	} catch (Exception e) {
 		
 		e.printStackTrace();
